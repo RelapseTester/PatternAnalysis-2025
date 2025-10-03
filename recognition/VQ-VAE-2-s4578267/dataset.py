@@ -69,9 +69,14 @@ def load_data_2D(imageNames, normImage=False, categorical=False, dtype=np.float3
 class HipMRIDataset(torch.utils.data.Dataset):
     '''
     Custom dataset for the HipMRI_complete_release_v1
+
+    X_dir: str, directory to .nii input image files.
+    y_dir: str, directory to .nii label image files.
+    transform: WIP
+    earlyStop: bool, load only the first few data inputs. For testing loading of dataset.
     '''
 
-    def __init__(self, X_dir, y_dir, transform=None):
+    def __init__(self, X_dir, y_dir, transform=None, earlyStop=False):
         self.X_dir = X_dir
         self.y_dir = y_dir
         self.transform = transform
@@ -82,13 +87,13 @@ class HipMRIDataset(torch.utils.data.Dataset):
 
         X_names = [file for file in os.listdir(self.X_dir) if os.path.isfile(os.path.join(self.X_dir, file))]
         os.chdir(self.X_dir)
-        X_images = load_data_2D(X_names)
+        X_images = load_data_2D(X_names, earlyStop=earlyStop)
 
         os.chdir(cdir)
 
         y_names = [file for file in os.listdir(self.y_dir) if os.path.isfile(os.path.join(self.y_dir, file))]
         os.chdir(self.y_dir)
-        y_images = load_data_2D(y_names)
+        y_images = load_data_2D(y_names, earlyStop=earlyStop)
 
         os.chdir(cdir)
 
@@ -102,7 +107,7 @@ class HipMRIDataset(torch.utils.data.Dataset):
         #path = os.path.join(self.X_dir, os.listdir(self.X_dir)[id])
         #image = load_data_2D()
 
-        return None
+        return self.data[index]
     
 
 if __name__ == "__main__":
@@ -110,6 +115,13 @@ if __name__ == "__main__":
     test_X_dir = "recognition/VQ-VAE-2-s4578267/data/HipMRI_study_complete_release_v1/semantic_MRs_anon"
     test_y_dir = "recognition/VQ-VAE-2-s4578267/data/HipMRI_study_complete_release_v1/semantic_labels_anon"
 
-    ds = HipMRIDataset(test_X_dir, test_y_dir)
+    ds = HipMRIDataset(test_X_dir, test_y_dir, earlyStop=True)
+    dl = torch.utils.data.DataLoader(ds, 1, False)
+    
+    for i, (img, label) in enumerate(dl):
+        print("X data shape:", img.shape)
+        print("y label shape:", label.shape)
+        break
 
-    print(len(ds))
+    print("Datset length:", len(ds))
+    print("Dataloader length:", len(dl))
