@@ -15,7 +15,10 @@ class EncodeBlock(nn.Module):
         )
 
     def forward(self, input):
-        return self.layer(input)
+        #print(input.shape)
+        out = self.layer(input)
+        #print(out.shape)
+        return out
 
 class Encoder(nn.Module):
 
@@ -47,28 +50,30 @@ class Encoder(nn.Module):
         '''
         '''
         output = self.layers(input)
-        print(output.shape)
         mu = self.fc_mu(output)
         logvar = self.fc_logvar(output)
         return mu, logvar
 
 class DecodeBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=1):
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=1, out_padding=1):
         super(DecodeBlock, self).__init__()
 
         self.layer = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, output_padding=out_padding),
             nn.LeakyReLU()
         )
 
     def forward(self, input):
-        return self.layer(input)
+        #print(input.shape)
+        out = self.layer(input)
+        #print(out.shape)
+        return out
     
 
 class Decoder(nn.Module):
 
-    def __init__(self, latent_dim, out_channels=[128,64], feature_map=(64,64), kernel_size=3):
+    def __init__(self, latent_dim, out_channels=[256,128,64], feature_map=(64,64), kernel_size=3):
         super(Decoder, self).__init__()
 
         self.layers = nn.Sequential(
@@ -76,11 +81,11 @@ class Decoder(nn.Module):
             nn.LeakyReLU(),
             nn.Unflatten(1, (out_channels[0], feature_map[0], feature_map[1]))
         )
-
+        
         for i in range(len(out_channels)-1):
-            self.layers.append(DecodeBlock(in_channels=out_channels[i], out_channels=out_channels[i+1], kernel_size=kernel_size))
+            self.layers.append(DecodeBlock(in_channels=out_channels[i], out_channels=out_channels[i+1], kernel_size=kernel_size, stride=2, padding=1, out_padding=1))
 
-        self.layers.append(nn.ConvTranspose2d(in_channels=out_channels[-1], out_channels=1, kernel_size=kernel_size))
+        self.layers.append(nn.ConvTranspose2d(in_channels=out_channels[-1], out_channels=1, kernel_size=kernel_size, stride=2, padding=1, output_padding=1))
         self.layers.append(nn.Sigmoid())
 
     def forward(self, input):
@@ -91,15 +96,17 @@ class Decoder(nn.Module):
 
 class VAE(nn.Module):
 
-    def __init__(self, in_channels=1, out_channels=[64,128,256], latent_dim=32, kernel_size=3):
+    def __init__(self, in_channels=1, out_channels=[64,128,256], latent_dim=32, kernel_size=3, image_size=(256,128)):
         super(VAE, self).__init__()
 
-        self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, latent_dim=latent_dim, kernel_size=kernel_size)
+        self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, latent_dim=latent_dim, kernel_size=kernel_size, image_size=image_size)
 
         rev_out = out_channels
         rev_out.reverse()
 
-        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out[1:], feature_map=(latent_dim,latent_dim), kernel_size=kernel_size)
+        feature_map = (image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels)))
+
+        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=feature_map, kernel_size=kernel_size)
 
     def reparameterize(self, mu, logvar):
         """
