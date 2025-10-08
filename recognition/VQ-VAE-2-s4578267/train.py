@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 
 # hyper-parameters
 batch_size = 64
-epochs = 1
-learning_rate = 0.001
+epochs = 10
+learning_rate = 0.00005
 beta = 1.0
 
 val_batch_size = 8
@@ -40,6 +40,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = modules.VAE(in_channels=1, out_channels=[64,128,256], latent_dim=64, kernel_size=3, image_size=train_set[0].shape[1:]).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, 0.5)
+#scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, 1/3, total_iters=11)
 
 print(model)
 
@@ -76,33 +78,40 @@ for epoch in range(epochs):
 
         # test model every tenth of an epoch
         # Save output of test as png
-        if (i+1) % (len(train_loader) // 10) == 0:
-            model.eval()
-            with torch.no_grad():
-                test_images = next(iter(val_loader)).to(device).float()
-                test_output, _, _ = model(test_images)
+        #if (i+1) % (len(train_loader) // 5) == 0:
+        #    print(f"Batch [{i+1}/{len(train_loader)}]")
 
-                fig, axes = plt.subplots(2, val_batch_size, figsize=(20, 4))
+    model.eval()
+    with torch.no_grad():
+        test_images = next(iter(val_loader)).to(device).float()
+        test_output, _, _ = model(test_images)
 
-                # plot
-                for j in range(val_batch_size):
+        fig, axes = plt.subplots(2, val_batch_size, figsize=(12, 4))
 
-                    axes[0, j].imshow(test_images[j].cpu().squeeze())
-                    axes[0, j].axis('off')
+        # plot
+        for j in range(val_batch_size):
 
-                    axes[1, j].imshow(test_output[j].cpu().squeeze())
-                    axes[1, j].axis('off')
+            axes[0, j].imshow(test_images[j].cpu().squeeze())
+            axes[0, j].axis('off')
 
-                plt.tight_layout()
-                plt.savefig(f"train_epoch_{epoch+1}_{i+1}.png")
+            axes[1, j].imshow(test_output[j].cpu().squeeze())
+            axes[1, j].axis('off')
+
+        plt.tight_layout()
+        plt.savefig(f"train_epoch_{epoch+1}_{i+1}.png")
+
+        plt.close()
+        
 
 
-            model.train()
+    model.train()
 
 
     avg_loss = total_loss / len(train_loader.dataset)
     avg_bce = total_bce / len(train_loader.dataset)
     avg_kld = total_kld / len(train_loader.dataset)
+
+    scheduler.step()
 
     print(f"Epoch [{epoch+1}/{epochs}] avg: Loss: {avg_loss:.5f}, BCE: {avg_bce:.5f}, KLD: {avg_kld:.5f}")
 
