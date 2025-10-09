@@ -7,7 +7,11 @@ and a Structured Similarity (SSIM) of over 0.6. [Hard Difficulty]
 ## Dependencies
 - torch
 - torchvision
+- - pip3 install torch torchvision
+
 ### dataset.py
 - numpy
 - nibabel
+- - pip3 install nibabel
 - tqdm
+- - pip3 install tqdm

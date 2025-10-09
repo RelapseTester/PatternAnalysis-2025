@@ -14,9 +14,9 @@ class EncodeBlock(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2) # halve height and width
         )
 
-    def forward(self, input):
+    def forward(self, x):
         #print(input.shape)
-        out = self.layer(input)
+        out = self.layer(x)
         #print(out.shape)
         return out
 
@@ -38,21 +38,12 @@ class Encoder(nn.Module):
         for out_ch in out_channels:
             self.layers.append(EncodeBlock(in_channels=in_ch, out_channels=out_ch, kernel_size=kernel_size))
             in_ch = out_ch
-
-        self.layers.append(nn.Flatten())
-
-        h, w = image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels))
-
-        self.fc_mu = nn.Linear(in_features=in_ch * h * w, out_features=latent_dim)
-        self.fc_logvar = nn.Linear(in_features=in_ch * h * w, out_features=latent_dim)
     
-    def forward(self, input):
+    def forward(self, x):
         '''
         '''
-        output = self.layers(input)
-        mu = self.fc_mu(output)
-        logvar = self.fc_logvar(output)
-        return mu, logvar
+        output = self.layers(x)
+        return output
 
 class DecodeBlock(nn.Module):
 
@@ -64,9 +55,9 @@ class DecodeBlock(nn.Module):
             nn.LeakyReLU()
         )
 
-    def forward(self, input):
+    def forward(self, x):
         #print(input.shape)
-        out = self.layer(input)
+        out = self.layer(x)
         #print(out.shape)
         return out
     
@@ -88,11 +79,11 @@ class Decoder(nn.Module):
         self.layers.append(nn.ConvTranspose2d(in_channels=out_channels[-1], out_channels=1, kernel_size=kernel_size, stride=2, padding=1, output_padding=1))
         self.layers.append(nn.Sigmoid())
 
-    def forward(self, input):
+    def forward(self, x):
         '''
         
         '''
-        return self.layers(input)
+        return self.layers(x)
 
 class VAE(nn.Module):
 
@@ -101,12 +92,18 @@ class VAE(nn.Module):
 
         self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, latent_dim=latent_dim, kernel_size=kernel_size, image_size=image_size)
 
+        self.encoder.layers.append(nn.Flatten())
+
+        h, w = image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels))
+        self.latent_channels = out_channels[-1] * h * w
+
+        self.fc_mu = nn.Linear(in_features=self.latent_channels, out_features=latent_dim)
+        self.fc_logvar = nn.Linear(in_features=self.latent_channels, out_features=latent_dim)
+
         rev_out = out_channels
         rev_out.reverse()
 
-        feature_map = (image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels)))
-
-        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=feature_map, kernel_size=kernel_size)
+        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=(h,w), kernel_size=kernel_size)
 
     def reparameterize(self, mu, logvar):
         """
@@ -120,7 +117,9 @@ class VAE(nn.Module):
             return mu
         
     def forward(self, x):
-        mu, logvar = self.encoder(x)
+        output = self.encoder(x)
+        mu = self.fc_mu(output)
+        logvar = self.fc_logvar(output)
         z = self.reparameterize(mu,logvar)
         reconstruction = self.decoder(z)
         return reconstruction, mu, logvar
@@ -137,11 +136,75 @@ class VAE(nn.Module):
         return binary_cross_entropy + beta * KL_divergence_loss, binary_cross_entropy, KL_divergence_loss
 
 
-class VectorQuantizer(nn.Module):
+class VectorQuantize(nn.Module):
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, num_embeds=2048, embed_dim=64):
+        super(VectorQuantize, self).__init__()
 
+        self.num_embeds = num_embeds
+        self.embed_dim = embed_dim
+
+        # initialize embedding lookup table
+        self.embedding = nn.Embedding(num_embeddings=num_embeds, embedding_dim=embed_dim)
+        self.embedding.weight.data.uniform_(-1/num_embeds, 1/num_embeds)
+
+
+    def forward(self, x):
+        """
+        WIP
+        """
+        #print(self.num_embeds, self.embed_dim, self.num_embeds * self.embed_dim)
+       
+        print("x.shape",x.shape)
+
+        # Calculate distances from inputs to embeddings
+        flatten = x.view(-1, self.num_embeds, self.embed_dim) # shape = (Batch_size, num_embeds, embed_dim)
+        distances = (flatten - self.embedding.weight.unsqueeze(0)).pow(2) # (input[Batch_size, num_embeds, embed_dim] - weight[Batch_size, num_embeds, embed_dim])^2
+
+        # Find nearest codebook entries
+        nearest_indices = torch.argmin(distances, 2) # shape = (Batch_size, num_embeds)
+        quantized = self.embedding(nearest_indices) # shape = (Batch_size, num_embeds, embed_dim)
+
+        q_reshape = quantized.reshape(x.shape) # shape = input.shape
+
+        return q_reshape
+
+
+class VQVAE(nn.Module):
+
+    def __init__(self, in_channels=1, out_channels=[64, 128, 256], latent_dim=32, kernel_size=3, image_size=(256, 128), embed_dim=64):
+        super(VQVAE, self).__init__()
+
+        self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, latent_dim=latent_dim, kernel_size=kernel_size, image_size=image_size)
+
+        h, w = image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels))
+
+        self.latent_channels = out_channels[-1] * h * w
+        self.vq = VectorQuantize(self.latent_channels // embed_dim, embed_dim)
+
+        rev_out = out_channels
+        rev_out.reverse()
+        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=(h,w), kernel_size=kernel_size)
+
+    def loss_function(self, x, quantized, commit_loss=1):
+        """
+        
+        """
+        encode_loss = F.mse_loss(quantized.detach(), x)
+        quantize_loss = F.mse_loss(quantized, x.detach())
+        return encode_loss * commit_loss + quantize_loss
+
+    def forward(self, x):
+        encoding = self.encoder(x)
+        quantized = self.vq(encoding)
+
+        # Enable backpropagation
+        if self.training:
+            quantized = x + (quantized - x).detach()
+
+        
+        
+        return quantized
 
 
 if __name__ == "__main__":
@@ -154,12 +217,20 @@ if __name__ == "__main__":
     #vd = Decoder(64)
     #print(vd)
 
-    #test_data = torch.randn((1,1,256,256))
+    test_data = torch.randn((4,1,256,128))
 
-    #print(test_data.shape)
+    
 
-    vae = VAE()
-    print(vae)
-
+    #vae = VAE()
+    #print(vae)
     #vae(test_data)
     #print(test_data.shape)
+
+    #vq = VectorQuantize()
+    #print(vq)
+
+    vqvae = VQVAE()
+    print(vqvae)
+    #print(test_data.shape)
+    out = vqvae(test_data)
+    #print(out.shape)
