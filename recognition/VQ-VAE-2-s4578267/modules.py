@@ -15,9 +15,7 @@ class EncodeBlock(nn.Module):
         )
 
     def forward(self, x):
-        #print(input.shape)
         out = self.layer(x)
-        #print(out.shape)
         return out
 
 class Encoder(nn.Module):
@@ -56,22 +54,16 @@ class DecodeBlock(nn.Module):
         )
 
     def forward(self, x):
-        #print(input.shape)
         out = self.layer(x)
-        #print(out.shape)
         return out
     
 
 class Decoder(nn.Module):
 
-    def __init__(self, latent_dim, out_channels=[256,128,64], feature_map=(64,64), kernel_size=3):
+    def __init__(self, out_channels=[256,128,64], latent_dim=64, image_size=(256,256), kernel_size=3):
         super(Decoder, self).__init__()
 
-        self.layers = nn.Sequential(
-            nn.Linear(in_features=latent_dim, out_features=out_channels[0] * feature_map[0] * feature_map[1]),
-            nn.LeakyReLU(),
-            nn.Unflatten(1, (out_channels[0], feature_map[0], feature_map[1]))
-        )
+        self.layers = nn.Sequential()
         
         for i in range(len(out_channels)-1):
             self.layers.append(DecodeBlock(in_channels=out_channels[i], out_channels=out_channels[i+1], kernel_size=kernel_size, stride=2, padding=1, out_padding=1))
@@ -103,7 +95,7 @@ class VAE(nn.Module):
         rev_out = out_channels
         rev_out.reverse()
 
-        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=(h,w), kernel_size=kernel_size)
+        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, kernel_size=kernel_size)
 
     def reparameterize(self, mu, logvar):
         """
@@ -138,99 +130,84 @@ class VAE(nn.Module):
 
 class VectorQuantize(nn.Module):
 
-    def __init__(self, num_embeds=2048, embed_dim=64):
+    def __init__(self, num_embeds=2048, embed_dim=64, commit_cost=1.0):
         super(VectorQuantize, self).__init__()
 
         self.num_embeds = num_embeds
         self.embed_dim = embed_dim
+        self.commit_cost = commit_cost
 
         # initialize embedding lookup table
         self.embedding = nn.Embedding(num_embeddings=num_embeds, embedding_dim=embed_dim)
         self.embedding.weight.data.uniform_(-1/num_embeds, 1/num_embeds)
 
-
     def forward(self, x):
         """
         WIP
         """
-        #print(self.num_embeds, self.embed_dim, self.num_embeds * self.embed_dim)
-       
-        print("x.shape",x.shape)
+
+        # Reshape x for distance calculations
+        x = x.permute(0,2,3,1).contiguous()
+        x_shape = x.shape
+        flatten = x.view(-1, 1, self.embed_dim)
 
         # Calculate distances from inputs to embeddings
-        flatten = x.view(-1, self.num_embeds, self.embed_dim) # shape = (Batch_size, num_embeds, embed_dim)
-        distances = (flatten - self.embedding.weight.unsqueeze(0)).pow(2) # (input[Batch_size, num_embeds, embed_dim] - weight[Batch_size, num_embeds, embed_dim])^2
+        distances = (flatten - self.embedding.weight.unsqueeze(0)).pow(2).mean(2)
 
         # Find nearest codebook entries
-        nearest_indices = torch.argmin(distances, 2) # shape = (Batch_size, num_embeds)
-        quantized = self.embedding(nearest_indices) # shape = (Batch_size, num_embeds, embed_dim)
+        nearest_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        quantized = self.embedding(nearest_indices).view(x_shape)
 
-        q_reshape = quantized.reshape(x.shape) # shape = input.shape
+        # Enable back-propagation
+        if self.training:
+            quantized = x + (quantized - x).detach()
 
-        return q_reshape
+        # Return in original shape
+        return quantized.permute(0, 3, 1, 2).contiguous()
 
 
 class VQVAE(nn.Module):
 
-    def __init__(self, in_channels=1, out_channels=[64, 128, 256], latent_dim=32, kernel_size=3, image_size=(256, 128), embed_dim=64):
+    def __init__(self, in_channels=1, out_channels=[64, 128, 256], latent_dim=32, kernel_size=3, image_size=(256, 128), num_embeds=64):
         super(VQVAE, self).__init__()
 
         self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, latent_dim=latent_dim, kernel_size=kernel_size, image_size=image_size)
 
-        h, w = image_size[0] // pow(2, len(out_channels)), image_size[1] // pow(2, len(out_channels))
-
-        self.latent_channels = out_channels[-1] * h * w
-        self.vq = VectorQuantize(self.latent_channels // embed_dim, embed_dim)
+        self.vq = VectorQuantize(num_embeds, latent_dim)
 
         rev_out = out_channels
         rev_out.reverse()
-        self.decoder = Decoder(latent_dim=latent_dim, out_channels=rev_out, feature_map=(h,w), kernel_size=kernel_size)
+        self.decoder = Decoder(out_channels=rev_out, latent_dim=latent_dim, image_size=image_size, kernel_size=kernel_size)
 
-    def loss_function(self, x, quantized, commit_loss=1):
+    def loss_function(self, predicted, target, commit_loss=1.0):
         """
         
         """
-        encode_loss = F.mse_loss(quantized.detach(), x)
-        quantize_loss = F.mse_loss(quantized, x.detach())
-        return encode_loss * commit_loss + quantize_loss
+        encode_loss = F.mse_loss(predicted.detach(), target)
+        quantize_loss = F.mse_loss(predicted, target.detach())
+        loss = encode_loss * commit_loss + quantize_loss
+        return loss
 
     def forward(self, x):
+
+        # Encode
         encoding = self.encoder(x)
+
+        # Vector Quantize
         quantized = self.vq(encoding)
 
-        # Enable backpropagation
-        if self.training:
-            quantized = x + (quantized - x).detach()
+        # Decode
+        decoded = self.decoder(quantized)
 
-        
-        
-        return quantized
+        return decoded
 
-
+# Testing
 if __name__ == "__main__":
-    #eb = EncodeBlock(1, 256)
-    #print(eb)
-    #ve = Encoder()
-    #print(ve)
-    #db = DecodeBlock(256, 128)
-    #print(db)
-    #vd = Decoder(64)
-    #print(vd)
 
     test_data = torch.randn((4,1,256,128))
 
-    
-
-    #vae = VAE()
-    #print(vae)
-    #vae(test_data)
-    #print(test_data.shape)
-
-    #vq = VectorQuantize()
-    #print(vq)
-
     vqvae = VQVAE()
     print(vqvae)
-    #print(test_data.shape)
+    print(test_data.shape)
     out = vqvae(test_data)
-    #print(out.shape)
+    print(out.shape)
