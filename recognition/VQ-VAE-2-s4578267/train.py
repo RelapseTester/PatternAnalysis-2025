@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 # hyper-parameters
 batch_size = 1
-epochs = 1
+epochs = 10
 learning_rate = 0.0005
 beta = 1.0
 
@@ -30,14 +30,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = modules.VQVAE(in_channels=1, out_channels=[128,256,512], latent_dim=64, kernel_size=3, image_size=train_set[0].shape[1:], num_embeds=32).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-train_losses = []
-val_losses = []
+
 
 model.train()
 print("> Training Started")
 start_time = time.time()
 
 for epoch in range(epochs):
+
+    train_losses = []
+    val_losses = []
+    
     print(f"Epoch [{epoch+1}/{epochs}]")
     
     for i, imgs in enumerate(train_loader):
@@ -55,8 +58,7 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
 
-        if epoch == 0:
-            train_losses.append(loss.item())
+        train_losses.append(loss.item())
 
         # Print progress every 10% of an epoch
         if (i+1) % (len(train_loader) // 10) == 0:
@@ -73,17 +75,22 @@ for epoch in range(epochs):
                 val_losses.append(val_loss.item())
 
             model.train()
+        
+    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f}")
+
+    # Plot first epoch training losses vs validation losses
+    if epoch == 0:
+        plt.plot(train_losses[:len(val_loader)], label="Training")
+        plt.plot(val_losses, label="Validation")
+        plt.legend()
+        plt.title(f"VQ-VAE Epoch {epoch+1}, Training Losses")
+        plt.xlabel("Batch")
+        plt.ylabel("Loss")
+        plt.savefig("training/vqvae_losses_plot.png")
+        plt.close()
 
 end_time = time.time()
 print(f"Training took {(end_time - start_time):.3f} seconds")
-
-plt.plot(train_losses[:len(val_loader)], label="Training")
-plt.plot(val_losses, label="Validation")
-plt.legend()
-plt.title("VQ-VAE Epoch 1, Training Losses")
-plt.xlabel("Batch")
-plt.ylabel("Loss")
-plt.savefig("training/vqvae_losses_plot.png")
 
 path = "training/VQVAE_model.pth"
 
