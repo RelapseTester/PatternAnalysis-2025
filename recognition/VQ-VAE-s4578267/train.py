@@ -5,6 +5,7 @@ import time
 
 import modules
 import dataset
+from config import vqvae_config
 
 import matplotlib.pyplot as plt
 
@@ -16,8 +17,9 @@ beta = 1.0
 
 val_batch_size = 1
 
-train_dir = "recognition/VQ-VAE-2-s4578267/data/keras_slices_data/keras_slices_train"
-val_dir = "recognition/VQ-VAE-2-s4578267/data/keras_slices_data/keras_slices_validate"
+train_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_train"
+val_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_validate"
+test_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_test"
 
 train_set = dataset.HipMRIDataset(X_dir=train_dir, earlyStop=False)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -25,13 +27,26 @@ train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shu
 val_set = dataset.HipMRIDataset(X_dir=val_dir)
 val_loader = torch.utils.data.DataLoader(val_set, batch_size=val_batch_size, shuffle=True)
 
+test_set = dataset.HipMRIDataset(X_dir=test_dir, earlyStop=False)
+test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = modules.VQVAE(in_channels=1, out_channels=[128,256,512], latent_dim=64, kernel_size=3, image_size=train_set[0].shape[1:], num_embeds=32).to(device)
+model = modules.VQVAE(
+    in_channels=vqvae_config.in_channels,
+    out_channels=vqvae_config.out_channels, 
+    latent_dim=vqvae_config.latent_dim, 
+    kernel_size=vqvae_config.kernel_size, 
+    image_size=train_set[0].shape[1:], 
+    num_embeds=vqvae_config.num_embeds
+    ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+###
+###
+###
 
-
+# Train and validate model
 model.train()
 print("> Training Started")
 start_time = time.time()
@@ -91,6 +106,38 @@ for epoch in range(epochs):
 
 end_time = time.time()
 print(f"Training took {(end_time - start_time):.3f} seconds")
+
+###
+###
+###
+
+# Test model
+ssim_score = ssim(data_range=1.0).to(device)
+test_scores = []
+test_losses = []
+
+model.eval()
+print("\n> Testing Started")
+start_time = time.time()
+
+for i, imgs in enumerate(test_loader):
+
+    images = imgs.to(device).float()
+
+    # Forward
+    output = model(images)
+
+    # Calculate Loss
+    loss = model.loss_function(output, images, 1.0)
+    test_losses.append(loss.item())
+
+    # Calculate SSIM
+    test_scores.append(ssim_score(output, images).item())
+
+end_time = time.time()
+print(f"Testing took {(end_time - start_time):.3f} seconds")
+print(f"Average loss: {(sum(test_losses) / len(test_losses)):.5f}, Average SSIM score: {(sum(test_scores) / len(test_scores)):.3f}")
+
 
 path = "training/VQVAE_model.pth"
 
