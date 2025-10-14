@@ -83,7 +83,7 @@ for epoch in range(epochs):
         plt.plot(train_losses[:len(val_loader)], label="Training")
         plt.plot(val_losses, label="Validation")
         plt.legend()
-        plt.title(f"VQ-VAE Epoch {epoch+1}, Training Losses")
+        plt.title(f"VQ-VAE Epoch {epoch+1} Losses")
         plt.xlabel("Batch")
         plt.ylabel("Loss")
         plt.savefig("training/vqvae_losses_plot.png")
