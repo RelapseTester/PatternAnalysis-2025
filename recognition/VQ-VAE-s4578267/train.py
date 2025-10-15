@@ -13,9 +13,8 @@ import matplotlib.pyplot as plt
 batch_size = 1
 epochs = 1
 learning_rate = 0.0005
-beta = 1.0
+commit_loss = 0.25
 
-val_batch_size = 1
 
 train_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_train"
 val_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_validate"
@@ -24,8 +23,8 @@ test_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_test
 train_set = dataset.HipMRIDataset(X_dir=train_dir, earlyStop=False)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
-val_set = dataset.HipMRIDataset(X_dir=val_dir)
-val_loader = torch.utils.data.DataLoader(val_set, batch_size=val_batch_size, shuffle=True)
+val_set = dataset.HipMRIDataset(X_dir=val_dir, earlyStop=False)
+val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
 test_set = dataset.HipMRIDataset(X_dir=test_dir, earlyStop=False)
 test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True)
@@ -41,6 +40,7 @@ model = modules.VQVAE(
     num_embeds=vqvae_config.num_embeds
     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+scheduler = torch.optim.lr_scheduler.LinearLR(optimizer=optimizer, start_factor=1.0, end_factor=0.001)
 
 ###
 ###
@@ -66,43 +66,45 @@ for epoch in range(epochs):
         output = model(images)
 
         # Calculate loss
-        loss = model.loss_function(output, images, beta)
+        loss = model.loss_function(output, images, commit_loss)
 
         # Backwards and Optimize
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        train_losses.append(loss.item())
+        # Test model using the validate dataset
+        #if (i) % (len(train_loader) // 100) == 0:
+        model.eval()
+        with torch.no_grad():
+            val_images = next(iter(val_loader)).to(device).float()
+            val_output = model(val_images)
+            
+            val_loss = model.loss_function(val_output, val_images, commit_loss)
+            val_losses.append(val_loss.item())
 
+            train_losses.append(loss.item())
+
+        model.train()
+        
         # Print progress every 10% of an epoch
         if (i+1) % (len(train_loader) // 10) == 0:
             print(f" - Batch [{i+1}/{len(train_loader)}]")
         
-        # Test model using the validate dataset
-        if (i+1 < len(val_loader)):
-            model.eval()
-            with torch.no_grad():
-                val_images = next(iter(val_loader)).to(device).float()
-                val_output = model(val_images)
-                
-                val_loss = model.loss_function(val_output, val_images, beta)
-                val_losses.append(val_loss.item())
-
-            model.train()
-        
-    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f}")
+    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f} - lr: {scheduler.get_last_lr()}")
 
     # Plot first epoch training losses vs validation losses
-    if epoch == 0:
-        plt.plot(train_losses[:len(val_loader)], label="Training")
-        plt.plot(val_losses, label="Validation")
-        plt.legend()
-        plt.title(f"VQ-VAE Epoch {epoch+1} Losses")
-        plt.xlabel("Batch")
-        plt.ylabel("Loss")
-        plt.savefig("training/vqvae_losses_plot.png")
-        plt.close()
+    #if epoch == 0:
+    plt.plot(train_losses[::len(train_losses) // 100], label="Training")
+    plt.plot(val_losses[::len(train_losses) // 100], label="Validation")
+    plt.legend()
+    plt.title(f"VQ-VAE Epoch {epoch+1} Losses")
+    plt.xlabel("Batch")
+    plt.ylabel("Loss")
+    plt.savefig(f"training/vqvae_losses_plot_{epoch+1}.png")
+    plt.close()
+    
+    scheduler.step()
 
 end_time = time.time()
 print(f"Training took {(end_time - start_time):.3f} seconds")

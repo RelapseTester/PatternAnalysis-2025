@@ -146,35 +146,60 @@ class VectorQuantize(nn.Module):
         """
 
         # Reshape x for distance calculations
-        print("input shape:", x.shape)
+        #print("input shape:", x.shape)
         #x = x.permute(0,2,3,1).contiguous()
         #print("permuted shape:", x.shape)
         #x_shape = x.shape
-        # Flatten x for distance calculations (C, 1, Ed)
-        flatten = x.view(-1, 1, self.embed_dim)
-        print("flatten shape:", flatten.shape)
+        # Flatten x for distance calculations
+        #flatten = x.view(-1, 1, self.embed_dim).contiguous() # (C, 1, embed_dim)
+        #print("flatten shape:", flatten.shape) 
 
         # Calculate minimum distances from inputs to embeddings
-        distances, indices = torch.min((flatten - self.embedding.weight.unsqueeze(0)).pow(2), dim=1)
-        print("dist shape:", distances.shape)
-        print("indices shape:",indices.shape)
+        #distances = torch.mean((flatten - self.embedding.weight.unsqueeze(0)).pow(2), dim=2) # (C, embed_dim)
+        #distances = (flatten - self.embedding.weight.unsqueeze(0)).pow(2).mean(dim=2)
+        #print("dist shape:", distances.shape)
+        #print("indices shape:",indices.shape)
 
         #print("d shape:", (flatten - self.embedding.weight.unsqueeze(0)).pow(2).shape)
         #print("embed shape:", self.embedding.weight.shape)
 
         # Find nearest codebook entries
-        nearest_indices = torch.argmin(indices, dim=1).unsqueeze(1)
-        quantized = self.embedding(nearest_indices).view(x.shape)
-        print("nearest shape:", nearest_indices.shape)
-        print("quantized shape:", quantized.shape)
+        #nearest_indices = torch.argmin(distances, dim=1).unsqueeze(1) # (C, 1)
+        #quantized = self.embedding(nearest_indices).view(x.shape) # (batch_size, c, H, W)
+        #print("nearest shape:", nearest_indices.shape)
+        #print("quantized shape:", quantized.shape)
+
+        # Enable back-propagation
+        #if self.training:
+        #    quantized = x + (quantized - x).detach()
+
+        # Return quantized values
+        #return quantized
+        #return quantized.permute(0, 3, 1, 2).contiguous()
+
+        # Reshape x for distance calculations
+        x = x.permute(0,2,3,1).contiguous()
+        x_shape = x.shape
+        #print("input shape:", x.shape)
+        flatten = x.view(-1, 1, self.embed_dim)
+        #print("flatten shape:", flatten.shape)
+
+        # Calculate distances from inputs to embeddings
+        distances = torch.mean((flatten - self.embedding.weight.unsqueeze(0)).pow(2), dim=2)
+        #print("dist shape:", distances.shape)
+
+        # Find nearest codebook entries
+        nearest_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        #print("nearest shape:", nearest_indices.shape)
+        quantized = self.embedding(nearest_indices).view(x_shape)
+        #print("quantized shape:", quantized.shape)
 
         # Enable back-propagation
         if self.training:
             quantized = x + (quantized - x).detach()
 
-        # Return quantized values
-        return quantized
-        #return quantized.permute(0, 3, 1, 2).contiguous()
+        # Return in original shape
+        return quantized.permute(0, 3, 1, 2).contiguous()
 
 
 class VQVAE(nn.Module):
@@ -218,7 +243,7 @@ if __name__ == "__main__":
     test_data = torch.randn((4,1,256,128))
 
     vqvae = VQVAE()
-    print(vqvae)
+    #print(vqvae)
     print(test_data.shape)
     out = vqvae(test_data)
     print(out.shape)
