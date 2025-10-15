@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # hyper-parameters
 batch_size = 1
-epochs = 10
+epochs = 1
 learning_rate = 0.0005
 beta = 1.0
 
