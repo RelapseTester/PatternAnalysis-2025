@@ -19,8 +19,7 @@ model = modules.VQVAE(
     in_channels=vqvae_config.in_channels,
     out_channels=vqvae_config.out_channels, 
     latent_dim=vqvae_config.latent_dim, 
-    kernel_size=vqvae_config.kernel_size, 
-    image_size=test_set[0].shape[1:], 
+    kernel_size=vqvae_config.kernel_size,
     num_embeds=vqvae_config.num_embeds
     ).to(device)
 
@@ -43,7 +42,7 @@ for i in range(num_images):
     images = imgs.to(device).float()
 
     # Forward
-    output = model(images)
+    output, _, _ = model(images)
 
     # Calculate Loss
     loss = model.loss_function(output, images, 1.0).item()

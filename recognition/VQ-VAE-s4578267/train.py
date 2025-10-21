@@ -10,9 +10,9 @@ from config import vqvae_config
 import matplotlib.pyplot as plt
 
 # hyper-parameters
-batch_size = 1
-epochs = 1
-learning_rate = 0.0005
+batch_size = 32
+epochs = 100
+learning_rate = 0.005
 commit_loss = 0.25
 
 
@@ -36,11 +36,10 @@ model = modules.VQVAE(
     out_channels=vqvae_config.out_channels, 
     latent_dim=vqvae_config.latent_dim, 
     kernel_size=vqvae_config.kernel_size, 
-    image_size=train_set[0].shape[1:], 
     num_embeds=vqvae_config.num_embeds
     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-scheduler = torch.optim.lr_scheduler.LinearLR(optimizer=optimizer, start_factor=1.0, end_factor=0.001)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=epochs, eta_min=0.0)
 
 ###
 ###
@@ -63,7 +62,7 @@ for epoch in range(epochs):
         images = imgs.to(device).float()
 
         # Forward
-        output = model(images)
+        output, _, _ = model(images)
 
         # Calculate loss
         loss = model.loss_function(output, images, commit_loss)
@@ -78,7 +77,7 @@ for epoch in range(epochs):
         model.eval()
         with torch.no_grad():
             val_images = next(iter(val_loader)).to(device).float()
-            val_output = model(val_images)
+            val_output, _, _ = model(val_images)
             
             val_loss = model.loss_function(val_output, val_images, commit_loss)
             val_losses.append(val_loss.item())
@@ -127,7 +126,7 @@ for i, imgs in enumerate(test_loader):
     images = imgs.to(device).float()
 
     # Forward
-    output = model(images)
+    output, _, _ = model(images)
 
     # Calculate Loss
     loss = model.loss_function(output, images, 1.0)

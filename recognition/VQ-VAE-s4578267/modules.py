@@ -335,7 +335,7 @@ class VQVAE(nn.Module):
         rev_out.reverse()
         self.decoder = Decoder(out_channels=rev_out, kernel_size=kernel_size)
 
-    def loss_function(self, predicted, target, commit_loss=1.0):
+    def loss_function(self, predicted: torch.Tensor, target: torch.Tensor, commit_loss=1.0):
         """
         Computes both the encoding loss and the quantize loss.
 
