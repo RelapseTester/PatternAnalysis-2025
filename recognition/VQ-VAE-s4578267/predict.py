@@ -1,7 +1,10 @@
+"""
+predict.py contains a sample script for loading a trained model and plotting its outputs.
+author: Garrett Bargewell, s4578267
+"""
+
 import torch
 from torchmetrics.image import StructuralSimilarityIndexMeasure as ssim 
-
-import time
 
 import modules
 import dataset

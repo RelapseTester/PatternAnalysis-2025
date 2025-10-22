@@ -1,3 +1,8 @@
+"""
+train.py contains an example of training, validating, and testing the VQ-VAE implemented in modules.py.
+author: Garrett Bargewell, s4578267
+"""
+
 import torch
 from torchmetrics.image import StructuralSimilarityIndexMeasure as ssim 
 

@@ -1,3 +1,7 @@
+"""
+config.py contains the VQVAE parameters used in train.py and predict.py
+author: Garrett Bargewell, s4578267
+"""
 
 class VQVAEConfig:
     def __init__(self) -> None:

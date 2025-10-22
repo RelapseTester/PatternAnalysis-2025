@@ -1,3 +1,8 @@
+"""
+dataset.py contains HipMRIDataset, a PyTorch Dataset implementation for loading 2D HipMRI images from .nii files.
+author: Garrett Bargewell, s4578267
+"""
+
 import numpy as np
 import nibabel as nib
 import tqdm as tqdm

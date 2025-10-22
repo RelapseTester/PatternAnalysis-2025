@@ -1,3 +1,8 @@
+"""
+modules.py contains the implementation of the VQ-VAE and its components.
+author: Garrett Bargewell, s4578267
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
