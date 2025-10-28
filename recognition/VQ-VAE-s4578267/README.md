@@ -3,7 +3,6 @@ Create a generative model of the HipMRI Study on Prostate Cancer using the proce
 images) available here with the using a VQVAE [12] or VQVAE2 [13] that has a “reasonably clear image”
 and a Structured Similarity (SSIM) of over 0.6. [Hard Difficulty]
 
-
 ## Hyper-Parameters
 The hyper-parameters were chosen by training then evaluating the model at intervals within a range of reasonable values.
 
@@ -28,11 +27,10 @@ The Decoder is a standard up-sampling neural network, desgined to reverse the do
 
 
 ## Dependencies
-- torch, torchvision - "pip3 install torch torchvision"
-- torchmetrics - "pip3 install torchmetrics"
-- matplotlib - "pip3 install matplotlib"
-
-### dataset.py
-- numpy - "pip3 install numpy"
-- nibabel - "pip3 install nibabel"
-- tqdm "pip3 install tqdm"
+- matplotlib - 3.10.7
+- numpy - 1.26.4
+- nibabel - 5.3.2
+- torch - 2.2.2
+- torchmetrics - 1.8.2
+- torchvision - 0.17.2
+- tqdm - 4.67.1
