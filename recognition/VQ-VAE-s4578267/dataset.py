@@ -10,8 +10,6 @@ import tqdm as tqdm
 import os
 import torch
 
-import matplotlib.pyplot as plt
-
 def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
     channels = np.unique(arr)
     res = np.zeros(arr.shape + (len(channels),), dtype=dtype)

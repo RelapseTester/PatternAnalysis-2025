@@ -280,7 +280,7 @@ class VectorQuantize(nn.Module):
         Returns:
             (torch.Tensor, torch.Tensor): Quantized outputs using the codebook lookup table, and the indices of each embedding used.
         
-        REF: Inspired by VectorQuantizer in https://github.com/LukeDitria/pytorch_tutorials/blob/main/section07_autoencoders/solutions/Pytorch3_VQVAE.ipynb
+        REF: Inspired by VectorQuantizer from video: https://www.youtube.com/watch?v=ZNRNddl9owI
         """
 
         # Permute x from (Batch_size, Channels, Height, Width) to (Batch_size, Height, Width, Channels)
