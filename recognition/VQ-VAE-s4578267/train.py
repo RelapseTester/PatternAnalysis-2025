@@ -46,6 +46,8 @@ model = modules.VQVAE(
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=epochs, eta_min=0.0)
 
+ssim_score = ssim(data_range=1.0).to(device)
+
 ###
 ###
 ###
@@ -57,8 +59,8 @@ start_time = time.time()
 
 for epoch in range(epochs):
 
-    train_losses = []
-    val_losses = []
+    train_losses, val_losses = [], []
+    train_scores, val_scores = [], [] 
     
     print(f"Epoch [{epoch+1}/{epochs}]")
     
@@ -71,6 +73,8 @@ for epoch in range(epochs):
 
         # Calculate loss
         loss = model.loss_function(output, images, commit_loss)
+        train_losses.append(loss.item())
+        train_scores.append(ssim_score(output, images).item())
 
         # Backwards and Optimize
         optimizer.zero_grad()
@@ -78,7 +82,6 @@ for epoch in range(epochs):
         optimizer.step()
 
         # Test model using the validate dataset
-        #if (i) % (len(train_loader) // 100) == 0:
         model.eval()
         with torch.no_grad():
             val_images = next(iter(val_loader)).to(device).float()
@@ -87,7 +90,7 @@ for epoch in range(epochs):
             val_loss = model.loss_function(val_output, val_images, commit_loss)
             val_losses.append(val_loss.item())
 
-            train_losses.append(loss.item())
+            val_scores.append(ssim_score(val_output, val_images).item())
 
         model.train()
         
@@ -95,10 +98,11 @@ for epoch in range(epochs):
         if (i+1) % (len(train_loader) // 10) == 0:
             print(f" - Batch [{i+1}/{len(train_loader)}]")
         
-    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f} - lr: {scheduler.get_last_lr()}")
+    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f}\n"
+          f"- Avg training SSIM: {(sum(train_scores) / len(train_scores)):.5f}, Avg validation SSIM: {(sum(val_scores) / len(val_scores)):.5f}\n"
+          f" - lr: {scheduler.get_last_lr()[0]:.7f}")
 
-    # Plot first epoch training losses vs validation losses
-    #if epoch == 0:
+    # Plot epoch (training losses vs validation losses) and (training ssim scores vs validation ssim scores)
     plt.plot(train_losses[::len(train_losses) // 100], label="Training")
     plt.plot(val_losses[::len(train_losses) // 100], label="Validation")
     plt.legend()
@@ -106,6 +110,15 @@ for epoch in range(epochs):
     plt.xlabel("Batch")
     plt.ylabel("Loss")
     plt.savefig(f"training/vqvae_losses_plot_{epoch+1}.png")
+    plt.close()
+
+    plt.plot(train_scores[::len(train_scores) // 100], label="Training")
+    plt.plot(val_scores[::len(val_scores) // 100], label="Validation")
+    plt.legend()
+    plt.title(f"VQ-VAE Epoch {epoch+1} SSIM Scores")
+    plt.xlabel("Batch")
+    plt.ylabel("SSIM")
+    plt.savefig(f"training/vqvae_SSIM_plot_{epoch+1}.png")
     plt.close()
     
     scheduler.step()
@@ -118,7 +131,6 @@ print(f"Training took {(end_time - start_time):.3f} seconds")
 ###
 
 # Test model
-ssim_score = ssim(data_range=1.0).to(device)
 test_scores = []
 test_losses = []
 
@@ -142,8 +154,16 @@ for i, imgs in enumerate(test_loader):
 
 end_time = time.time()
 print(f"Testing took {(end_time - start_time):.3f} seconds")
-print(f"Average loss: {(sum(test_losses) / len(test_losses)):.5f}, Average SSIM score: {(sum(test_scores) / len(test_scores)):.3f}")
+print(f" - Avg testing loss: {(sum(test_losses) / len(test_losses)):.5f}, Avg testing SSIM: {(sum(test_scores) / len(test_scores)):.5f}")
 
+# plot ssim scores of trained model on the test set
+plt.plot(test_scores, label="Testing")
+plt.legend()
+plt.title(f"VQ-VAE Test set SSIM Scores")
+plt.xlabel("Batch")
+plt.ylabel("SSIM")
+plt.savefig(f"training/vqvae_test_set_SSIM_plot.png")
+plt.close()
 
 path = "training/VQVAE_model.pth"
 

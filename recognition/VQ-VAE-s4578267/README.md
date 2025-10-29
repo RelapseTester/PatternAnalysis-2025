@@ -55,6 +55,8 @@ The training uses a Cosine Annealing learning rate scheduler to smoothly reduce 
 
 ![Training-Losses](docs/vqvae_losses_plot_1.png)
 
+![Training-Scores](docs/vqvae_SSIM_plot_1.png)
+
 ![Test-Image-1](docs/test_images_1.png)
 
 ![Test-Image-2](docs/test_images_2.png)
