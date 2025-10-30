@@ -16,9 +16,8 @@ import matplotlib.pyplot as plt
 
 # hyper-parameters
 batch_size = 32
-epochs = 100
+epochs = 10
 learning_rate = 0.005
-commit_loss = 0.25
 
 
 train_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_train"
@@ -53,16 +52,15 @@ ssim_score = ssim(data_range=1.0).to(device)
 ###
 ###
 
+train_losses, val_losses = [], []
+train_scores, val_scores = [], [] 
+
 # Train and validate model
 model.train()
 print("> Training Started")
 start_time = time.time()
 
 for epoch in range(epochs):
-
-    train_losses, val_losses = [], []
-    train_scores, val_scores = [], [] 
-    
     print(f"Epoch [{epoch+1}/{epochs}]")
     
     for i, imgs in enumerate(train_loader):
@@ -87,9 +85,9 @@ for epoch in range(epochs):
         model.eval()
         with torch.no_grad():
             val_images = next(iter(val_loader)).to(device).float()
-            val_output, _, _ = model(val_images)
+            val_output, _, val_vq_loss = model(val_images)
             
-            val_loss = model.loss_function(val_output, val_images, commit_loss)
+            val_loss = model.loss_function(val_output, val_images, val_vq_loss)
             val_losses.append(val_loss.item())
 
             val_scores.append(ssim_score(val_output, val_images).item())
@@ -100,24 +98,24 @@ for epoch in range(epochs):
         if (i+1) % (len(train_loader) // 10) == 0:
             print(f" - Batch [{i+1}/{len(train_loader)}]")
         
-    print(f" - Avg training loss: {(sum(train_losses) / len(train_losses)):.5f}, Avg validation loss: {(sum(val_losses) / len(val_losses)):.5f}\n"
-          f"- Avg training SSIM: {(sum(train_scores) / len(train_scores)):.5f}, Avg validation SSIM: {(sum(val_scores) / len(val_scores)):.5f}\n"
+    print(f" - Avg training loss: {(sum(train_losses[-len(train_loader):]) / len(train_loader)):.5f}, Avg validation loss: {(sum(val_losses[-len(val_loader):]) / len(val_loader)):.5f}\n"
+          f"- Avg training SSIM: {(sum(train_scores[-len(train_loader):]) / len(train_loader)):.5f}, Avg validation SSIM: {(sum(val_scores[-len(val_loader):]) / len(val_loader)):.5f}\n"
           f" - lr: {scheduler.get_last_lr()[0]:.7f}")
 
-    # Plot epoch (training losses vs validation losses) and (training ssim scores vs validation ssim scores)
-    plt.plot(train_losses[::len(train_losses) // 100], label="Training")
-    plt.plot(val_losses[::len(train_losses) // 100], label="Validation")
+    # Plot (training losses vs validation losses) and (training ssim scores vs validation ssim scores)
+    plt.plot(train_losses, label="Training")
+    plt.plot(val_losses, label="Validation")
     plt.legend()
-    plt.title(f"VQ-VAE Epoch {epoch+1} Losses")
+    plt.title(f"VQ-VAE Losses")
     plt.xlabel("Batch")
     plt.ylabel("Loss")
     plt.savefig(f"training/vqvae_losses_plot_{epoch+1}.png")
     plt.close()
 
-    plt.plot(train_scores[::len(train_scores) // 100], label="Training")
-    plt.plot(val_scores[::len(val_scores) // 100], label="Validation")
+    plt.plot(train_scores, label="Training")
+    plt.plot(val_scores, label="Validation")
     plt.legend()
-    plt.title(f"VQ-VAE Epoch {epoch+1} SSIM Scores")
+    plt.title(f"VQ-VAE SSIM Scores")
     plt.xlabel("Batch")
     plt.ylabel("SSIM")
     plt.savefig(f"training/vqvae_SSIM_plot_{epoch+1}.png")
@@ -145,10 +143,10 @@ for i, imgs in enumerate(test_loader):
     images = imgs.to(device).float()
 
     # Forward
-    output, _, _ = model(images)
+    output, _, test_vq_loss = model(images)
 
     # Calculate Loss
-    loss = model.loss_function(output, images, 1.0)
+    loss = model.loss_function(output, images, test_vq_loss)
     test_losses.append(loss.item())
 
     # Calculate SSIM
@@ -157,15 +155,6 @@ for i, imgs in enumerate(test_loader):
 end_time = time.time()
 print(f"Testing took {(end_time - start_time):.3f} seconds")
 print(f" - Avg testing loss: {(sum(test_losses) / len(test_losses)):.5f}, Avg testing SSIM: {(sum(test_scores) / len(test_scores)):.5f}")
-
-# plot ssim scores of trained model on the test set
-plt.plot(test_scores, label="Testing")
-plt.legend()
-plt.title(f"VQ-VAE Test set SSIM Scores")
-plt.xlabel("Batch")
-plt.ylabel("SSIM")
-plt.savefig(f"training/vqvae_test_set_SSIM_plot.png")
-plt.close()
 
 path = "training/VQVAE_model.pth"
 
