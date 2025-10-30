@@ -248,12 +248,12 @@ class VAE(nn.Module):
         return binary_cross_entropy + beta * KL_divergence_loss, binary_cross_entropy, KL_divergence_loss
 
 
-class VectorQuantize(nn.Module):
+class VectorQuantise(nn.Module):
     """
     Vector Quantisation module for use in a VQ-VAE model.
     """
 
-    def __init__(self, num_embeds=2048, embed_dim=64):
+    def __init__(self, num_embeds=2048, embed_dim=64, commitment_cost=0.25):
         """
         Initialises the Vector Quantizer with the given parameters.
 
@@ -261,10 +261,11 @@ class VectorQuantize(nn.Module):
             num_embeds (int): Code book size. The number of values in the embedding lookup table.
             embed_dim (int): Dimensionality of each vector in the codebook.
         """
-        super(VectorQuantize, self).__init__()
+        super(VectorQuantise, self).__init__()
 
         self.num_embeds = num_embeds
         self.embed_dim = embed_dim
+        self.commitment_cost = commitment_cost
 
         # initialize embedding lookup table
         self.embedding = nn.Embedding(num_embeddings=num_embeds, embedding_dim=embed_dim)
@@ -272,13 +273,13 @@ class VectorQuantize(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Parses the input through this Vector Quantiser module, returning the quantized outputs and the indices used.
+        Parses the input through this Vector Quantiser module, returning the quantized outputs, the indices used, and the vector quantisation loss.
 
         Args:
             x (torch.Tensor): input data to this Vector Quantizer.
 
         Returns:
-            (torch.Tensor, torch.Tensor): Quantized outputs using the codebook lookup table, and the indices of each embedding used.
+            (torch.Tensor, torch.Tensor, torch.Tensor): Quantized outputs using the codebook lookup table, the indices of each embedding used, and the vector quantisation loss.
         
         REF: Inspired by VectorQuantizer from video: https://www.youtube.com/watch?v=ZNRNddl9owI
         """
@@ -303,23 +304,31 @@ class VectorQuantize(nn.Module):
         ## Find nearest codebook entries for each input vector
         #   (Batch_size * Height * Width, 1)
         nearest_indices = torch.argmin(distances, dim=1).unsqueeze(1)
-        quantized = self.embedding(nearest_indices).view(x_shape)
+        quantised = self.embedding(nearest_indices).view(x_shape)
+
+        ## Calculate Vector Quantisation loss
+        # || sg[quantised] - x ||^2
+        encode_loss = F.mse_loss(quantised.detach(), x)
+        # || quantised - sg[x] ||^2
+        quantised_loss = F.mse_loss(quantised, x.detach())
+        # || sg[quantised] - x ||^2 + commitment_cost * || quantised - sg[x] ||^2
+        vq_loss = quantised_loss + self.commitment_cost * encode_loss
 
         # Enable back-propagation
         if self.training:
-            quantized = x + (quantized - x).detach()
+            quantised = x + (quantised - x).detach()
 
         ## Return the quantised tensor with the same shape as the input, and the encoding indices
-        #   (Batch_size, Channels, Height, Width), (Batch_size * Height * Width, 1)
-        return quantized.permute(0, 3, 1, 2).contiguous(), nearest_indices
+        #   (Batch_size, Channels, Height, Width), (Batch_size * Height * Width, 1), (Batch_size, Channels, Height, Width)
+        return quantised.permute(0, 3, 1, 2).contiguous(), nearest_indices, vq_loss
 
 class VQVAE(nn.Module):
     """
     Vector Quantized Variational Auto-Encoder.
-    Uses the Encoder, Decoder, and VectorQuantize modules.
+    Uses the Encoder, Decoder, and VectorQuantise modules.
     """
 
-    def __init__(self, in_channels=1, out_channels=[64, 128, 256], latent_dim=32, kernel_size=3, num_embeds=64):
+    def __init__(self, in_channels=1, out_channels=[64, 128, 256], latent_dim=32, kernel_size=3, num_embeds=64, commit_cost=0.25):
         """
         Initialises the VQVAE with the given parameters.
 
@@ -328,33 +337,32 @@ class VQVAE(nn.Module):
             out_channels (list[int]): output channels of each layer. len(out_channels) is used to determine number of layers to create.
             latent_dim (int): Dimensionality of the Vector Quantized embeddings.
             kernel_size: kernel_size for both the Encoder and Decoder.
-            num_embeds (int): Code book size for the VectorQuantize module. The number of values in the embedding lookup table.
+            num_embeds (int): Code book size for the VectorQuantise module. The number of values in the embedding lookup table.
+            commit_cost (float): Commitment cost for the vector quantised loss calculation
         """
         super(VQVAE, self).__init__()
 
         self.encoder = Encoder(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
 
-        self.vq = VectorQuantize(num_embeds, latent_dim)
+        self.vq = VectorQuantise(num_embeds, latent_dim, commitment_cost=commit_cost)
 
         rev_out = out_channels
         rev_out.reverse()
         self.decoder = Decoder(out_channels=rev_out, kernel_size=kernel_size)
 
-    def loss_function(self, predicted: torch.Tensor, target: torch.Tensor, commit_loss=1.0):
+    def loss_function(self, predicted: torch.Tensor, target: torch.Tensor, vq_loss: torch.Tensor):
         """
-        Computes both the encoding loss and the quantize loss.
+        Computes the total loss function for the VQ-VAE
 
         Args:
             predicted (torch.Tensor): Output of the VQVAE.
             target (torch.Tensor): True value of the input to the VQVAE.
-            commit_loss (float): coefficient of the encode loss.
+            vq_loss (torch.Tensor): loss returned by the vector quantisation module.
 
         Returns:
-            torch.Tensor: encode_loss * commit_loss + quantize_loss
+            torch.Tensor: reconstruction_loss + vq_loss
         """
-        encode_loss = F.mse_loss(predicted.detach(), target)
-        quantize_loss = F.mse_loss(predicted, target.detach())
-        loss = encode_loss * commit_loss + quantize_loss
+        loss = F.mse_loss(predicted, target) + vq_loss
         return loss
 
     def forward(self, x):
@@ -371,12 +379,12 @@ class VQVAE(nn.Module):
         encoding = self.encoder(x)
 
         # Vector Quantize
-        quantized, indices = self.vq(encoding)
+        quantized, _, vq_loss = self.vq(encoding)
 
         # Decode
         decoded = self.decoder(quantized)
 
-        return decoded, quantized, indices
+        return decoded, quantized, vq_loss
 
 # Testing
 if __name__ == "__main__":
@@ -386,6 +394,9 @@ if __name__ == "__main__":
     vqvae = VQVAE()
     #print(vqvae)
     print(test_data.shape)
-    out = vqvae(test_data)
-    print(out.shape)
+    out, _, vq_loss = vqvae(test_data)
+
+    loss = vqvae.loss_function(out, test_data, vq_loss)
+    loss.backward()
+    print(out.shape, loss.item())
 

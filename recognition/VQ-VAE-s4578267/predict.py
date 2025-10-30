@@ -22,8 +22,9 @@ model = modules.VQVAE(
     in_channels=vqvae_config.in_channels,
     out_channels=vqvae_config.out_channels, 
     latent_dim=vqvae_config.latent_dim, 
-    kernel_size=vqvae_config.kernel_size,
-    num_embeds=vqvae_config.num_embeds
+    kernel_size=vqvae_config.kernel_size, 
+    num_embeds=vqvae_config.num_embeds,
+    commit_cost=vqvae_config.commitment_cost
     ).to(device)
 
 path = "training/VQVAE_model.pth"
@@ -45,10 +46,10 @@ for i in range(num_images):
     images = imgs.to(device).float()
 
     # Forward
-    output, _, _ = model(images)
+    output, _, vq_loss = model(images)
 
     # Calculate Loss
-    loss = model.loss_function(output, images, 1.0).item()
+    loss = model.loss_function(output, images, vq_loss).item()
 
     # Calculate SSIM
     score = (ssim_score(output, images).item())

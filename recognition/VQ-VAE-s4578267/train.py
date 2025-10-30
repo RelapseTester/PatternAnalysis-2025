@@ -41,7 +41,8 @@ model = modules.VQVAE(
     out_channels=vqvae_config.out_channels, 
     latent_dim=vqvae_config.latent_dim, 
     kernel_size=vqvae_config.kernel_size, 
-    num_embeds=vqvae_config.num_embeds
+    num_embeds=vqvae_config.num_embeds,
+    commit_cost=vqvae_config.commitment_cost
     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=epochs, eta_min=0.0)
@@ -69,10 +70,11 @@ for epoch in range(epochs):
         images = imgs.to(device).float()
 
         # Forward
-        output, _, _ = model(images)
+        output, _, vq_loss = model(images)
 
         # Calculate loss
-        loss = model.loss_function(output, images, commit_loss)
+        loss = model.loss_function(output, images, vq_loss)
+        
         train_losses.append(loss.item())
         train_scores.append(ssim_score(output, images).item())
 

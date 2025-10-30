@@ -27,7 +27,6 @@ def load_HipMRI_slices(imageNames, outDimensions=(256,128), normImage=False, ear
     normImage: bool (normalise the image 0.0-1.0)
     earlyStop: Stop loading pre-maturely, leaves arrays mostly empty, for quick loading and testing scripts.
     '''
-    #shapes = {}
     images = []
     num = len(imageNames)
     for i, imgName in enumerate(tqdm.tqdm(imageNames)):
@@ -51,21 +50,11 @@ def load_HipMRI_slices(imageNames, outDimensions=(256,128), normImage=False, ear
                 img = np.pad(img, pad_width=(h_pad, w_pad), mode='constant', constant_values=0)
 
         if normImage:
-            #fig, axes = plt.subplots(2, figsize=(20, 4))
-
-            #axes[0].imshow(img)
-            #print(img.min(), img.max())
 
             min_val = img.min()
             max_val = img.max()
 
             img = (img - min_val) / (max_val - min_val)
-
-            #print(img.min(), img.max())
-
-            #axes[1].imshow(img)
-
-            #plt.show()
 
         img = img[np.newaxis,:,:]
         images.append(img)
@@ -138,7 +127,6 @@ class HipMRIDataset(torch.utils.data.Dataset):
 
     def __init__(self, X_dir, transform=None, earlyStop=False):
         self.X_dir = X_dir
-        #self.y_dir = y_dir
         self.transform = transform
 
         self.data = []
@@ -149,26 +137,16 @@ class HipMRIDataset(torch.utils.data.Dataset):
         os.chdir(self.X_dir)
 
         X_images = load_HipMRI_slices(X_names, normImage=True, earlyStop=earlyStop)
-        #X_images = load_data_2D(X_names, earlyStop=earlyStop)
 
         os.chdir(cdir)
 
-        #y_names = [file for file in os.listdir(self.y_dir) if os.path.isfile(os.path.join(self.y_dir, file))]
-        #os.chdir(self.y_dir)
-        #y_images = load_data_2D(y_names, earlyStop=earlyStop)
-
-        #os.chdir(cdir)
-
         for i in range(len(X_images)):
-        #    #self.data.append((X_images[i], y_images[i]))
             self.data.append(X_images[i])
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index) -> tuple:
-        #path = os.path.join(self.X_dir, os.listdir(self.X_dir)[id])
-        #image = load_data_2D()
         if self.transform:
             return self.transform(self.data[index])
         return self.data[index]
@@ -177,16 +155,10 @@ class HipMRIDataset(torch.utils.data.Dataset):
 if __name__ == "__main__":
 
     test_X_dir = "recognition/VQ-VAE-2-s4578267/data/keras_slices_data/keras_slices_train"
-    #test_y_dir = "recognition/VQ-VAE-2-s4578267/data/keras_slices_data/keras_slices_validate"
 
     ds = HipMRIDataset(test_X_dir, earlyStop=True)
     dl = torch.utils.data.DataLoader(ds, 64, False)
     
-
-    #for i, (img, label) in enumerate(dl):
-    #    print("X data shape:", img.shape)
-    #    print("y label shape:", label.shape)
-    #    break
     print(ds[0].shape)
 
     print("Datset length:", len(ds))

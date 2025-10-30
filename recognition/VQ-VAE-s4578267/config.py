@@ -10,5 +10,6 @@ class VQVAEConfig:
         self.latent_dim = 64
         self.kernel_size = 3
         self.num_embeds = 32
+        self.commitment_cost = 0.25
 
 vqvae_config = VQVAEConfig()

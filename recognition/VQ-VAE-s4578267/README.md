@@ -3,30 +3,39 @@ Create a generative model of the HipMRI Study on Prostate Cancer using the proce
 images) available here with the using a VQVAE [12] or VQVAE2 [13] that has a “reasonably clear image”
 and a Structured Similarity (SSIM) of over 0.6. [Hard Difficulty]
 
+## Introduction
+This project implements and trains a Vector Quantised Variational Autoencoder (VQ-VAE) to compress and reconstruct 2-dimensional images from the HipMRI Study on Prostate Cancer. Analysis of the model used Mean-Squared Error (MSE) loss and the Structural Similarity Index Measure (SSIM) score. Overall, the model effectively learned the key features and structure of the HipMRI slices with an average MSE loss of ~0.0022 and average SSIM score of > 0.8 on unseen test data.
+
+Instead of learning a continuous distribution in the latent space, the VQ-VAE learns to map the continuous latent space to a set of finite, discrete n-dimensional vectors (embeddings). This is called the "code-book" which contains the embedding space. The encoded input is essentially converted to a vector of the embedding indices. These indices are then quantised back into a continuous latent space for use by a Decoder. By using discrete representations of the latent space, the model is able to learn the structure and patterns within the inputs more effectively.
+
+![VQ-VAE Diagram](images/VQVAE_diagram.png)
+
 ## Model Structure
 The implemented VQ-VAE utilises components from a vanilla VAE, specifically the Encoder and Decoder. However, a Vector Quantisation module replaces the typical reparameterisation layer.
 
-![VQ-VAE Diagram](docs/VQVAE_diagram.png)
-
-[Source][VQ-VAE]
-
 ### Encoder
-The Encoder structure is a standard down-sampling neural network. It is composed of blocks which are made up of a 2D Convolution, a 2D Batch Normalisation, a LeakyReLU, and a 2D Max Pooling layer. Each block halves the height and width dimensions of the input while increasing the number of channels.
+The Encoder structure is a standard down-sampling neural network. It is composed of down-sampling blocks which halve the height and width dimensions of the input while increasing the number of channels. Each down-sampling block contains (in-order):
+1. 2-D Convlolution: 
+2. 2-D Batch Normalisation:
+3. LeakyReLU:
+4. 2-D Max Pooling:
 
 ### Decoder
-The Decoder is a standard up-sampling neural network, desgined to reverse the down-sampling from the Encoder. The blocks consist of a 2D Transpose Convolution and a LeakyReLU activation function. These blocks perform the reverse of the Encoder blocks, decreasing the channels and doubling the height and width dimensions.
+The Decoder is a standard up-sampling neural network, desgined to reverse the down-sampling from the Encoder. The up-sampling blocks perform the reverse of the down-sampling blocks, decreasing the channels and doubling the height and width dimensions. An up-sampling block is composed of:
+1. 2-D Transpose Convolution:
+2. LeakyReLU:
+The output of the Decoder the same dimensionality as the input to the Encoder.
 
 ### Vector Quantisation
-
-
-
-
+The Vector Quantiser (VQ) converts the continuous latent space from the Encoder into a set of embeddings within a finite n-dimensional space. Distinct subsets of the latent space are assigned to the "nearest" embedding in this space (Using the Eucildean distance for n-dimensions). The indices of these nearest embeddings are then sent to the Decoder.
 
 ## Data Processing
 
 
 
 ## Training
+
+###
 
 ### Model Parameters
 The implementation of the VQ-VAE requires certain model parameters to be specified at initialisation.
@@ -53,17 +62,17 @@ The training uses a Cosine Annealing learning rate scheduler to smoothly reduce 
 
 ## Results
 
-![Training-Losses](docs/vqvae_losses_plot_1.png)
+![Training-Losses](images/vqvae_losses_plot_1.png)
 
-![Training-Scores](docs/vqvae_SSIM_plot_1.png)
+![Training-Scores](images/vqvae_SSIM_plot_1.png)
 
-![Test-Image-1](docs/test_images_1.png)
+![Test-Image-1](images/test_images_1.png)
 
-![Test-Image-2](docs/test_images_2.png)
+![Test-Image-2](images/test_images_2.png)
 
-![Test-Image-3](docs/test_images_3.png)
+![Test-Image-3](images/test_images_3.png)
 
-![Test-Image-4](docs/test_images_4.png)
+![Test-Image-4](images/test_images_4.png)
 
 
 ## Reproducing Results
