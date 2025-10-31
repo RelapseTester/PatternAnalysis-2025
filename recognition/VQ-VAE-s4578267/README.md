@@ -113,19 +113,15 @@ Examples of the input vs reconstruction are shown below.
 To reproduce the results the following steps can be taken:
 
 1. **Dependencies**: Ensure the dependencies listed below are installed.
-2. **Image Files**: The data is stored as .nii files in the following structure:
+2. **Change Directory**: Set the current directory to ```./recognition/VQ-VAE-s4578267```
+3. **Image Files**: The data is stored as .nii files in the following structure:
 ```
 ./data/keras_slices_data/
     - keras_slices_train/
     - keras_slices_validate/
     - keras_slices_test/
 ``` 
-3. **Output Directories**: There exists the following directories:
-```
-./training/
-./testing/
-``` 
-4. **Train Model**: Train the model by running ```train.py```. The trained model will be saved in ```./training/```.
+4. **Train Model**: Train the model by running ```train.py```. The trained model and plots will be saved in ```./training/```.
 5. **Use Model**: After step 4, run the ```predict.py``` script. This will generate ten images in ```./testing/``` which compare the original vs reconstruction of images from the test set.
 
 ### Dependencies

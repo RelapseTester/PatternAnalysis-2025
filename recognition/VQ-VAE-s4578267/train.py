@@ -16,13 +16,13 @@ import matplotlib.pyplot as plt
 
 # hyper-parameters
 batch_size = 32
-epochs = 10
+epochs = 1
 learning_rate = 0.005
 
 # Load data
-train_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_train"
-val_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_validate"
-test_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_test"
+train_dir = "data/keras_slices_data/keras_slices_train"
+val_dir = "data/keras_slices_data/keras_slices_validate"
+test_dir = "data/keras_slices_data/keras_slices_test"
 
 train_set = dataset.HipMRIDataset(X_dir=train_dir, earlyStop=False)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
