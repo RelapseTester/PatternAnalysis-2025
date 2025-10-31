@@ -29,7 +29,7 @@ def load_HipMRI_slices(imageNames, outDimensions=(256,128), normImage=False, ear
     '''
     images = []
     num = len(imageNames)
-    for i, imgName in enumerate(tqdm.tqdm(imageNames)):
+    for imgName in (tqdm.tqdm(imageNames)):
         img = nib.load(imgName).get_fdata(caching='unchanged')
         s = img.shape
 

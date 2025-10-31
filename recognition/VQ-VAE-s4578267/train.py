@@ -19,7 +19,7 @@ batch_size = 32
 epochs = 10
 learning_rate = 0.005
 
-
+# Load data
 train_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_train"
 val_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_validate"
 test_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_test"
@@ -33,6 +33,7 @@ val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle
 test_set = dataset.HipMRIDataset(X_dir=test_dir, earlyStop=False)
 test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True)
 
+# Setup model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = modules.VQVAE(
@@ -52,6 +53,7 @@ ssim_score = ssim(data_range=1.0).to(device)
 ###
 ###
 
+# Store training and validation metrics
 train_losses, val_losses = [], []
 train_scores, val_scores = [], [] 
 
@@ -97,12 +99,13 @@ for epoch in range(epochs):
         # Print progress every 10% of an epoch
         if (i+1) % (len(train_loader) // 10) == 0:
             print(f" - Batch [{i+1}/{len(train_loader)}]")
-        
+    
+    # Print Epoch average metrics
     print(f" - Avg training loss: {(sum(train_losses[-len(train_loader):]) / len(train_loader)):.5f}, Avg validation loss: {(sum(val_losses[-len(val_loader):]) / len(val_loader)):.5f}\n"
           f"- Avg training SSIM: {(sum(train_scores[-len(train_loader):]) / len(train_loader)):.5f}, Avg validation SSIM: {(sum(val_scores[-len(val_loader):]) / len(val_loader)):.5f}\n"
           f" - lr: {scheduler.get_last_lr()[0]:.7f}")
 
-    # Plot (training losses vs validation losses) and (training ssim scores vs validation ssim scores)
+    # Plot all previous (training losses vs validation losses) and (training ssim scores vs validation ssim scores)
     plt.plot(train_losses, label="Training")
     plt.plot(val_losses, label="Validation")
     plt.legend()
@@ -125,6 +128,11 @@ for epoch in range(epochs):
 
 end_time = time.time()
 print(f"Training took {(end_time - start_time):.3f} seconds")
+
+# Save trained model
+model.eval()
+path = "training/VQVAE_model.pth"
+torch.save(model.state_dict(), path)
 
 ###
 ###
@@ -155,9 +163,3 @@ for i, imgs in enumerate(test_loader):
 end_time = time.time()
 print(f"Testing took {(end_time - start_time):.3f} seconds")
 print(f" - Avg testing loss: {(sum(test_losses) / len(test_losses)):.5f}, Avg testing SSIM: {(sum(test_scores) / len(test_scores)):.5f}")
-
-path = "training/VQVAE_model.pth"
-
-# Save model
-model.eval()
-torch.save(model.state_dict(), path)

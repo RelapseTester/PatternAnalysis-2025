@@ -12,11 +12,13 @@ from config import vqvae_config
 
 import matplotlib.pyplot as plt
 
+# Load test images
 test_dir = "recognition/VQ-VAE-s4578267/data/keras_slices_data/keras_slices_test"
 
 test_set = dataset.HipMRIDataset(X_dir=test_dir, earlyStop=False)
 test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True)
 
+# Setup model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = modules.VQVAE(
     in_channels=vqvae_config.in_channels,
@@ -32,7 +34,7 @@ path = "training/VQVAE_model.pth"
 model_state_dict = torch.load(path, weights_only=True)
 model.load_state_dict(model_state_dict)
 
-# Test model
+# Use model
 ssim_score = ssim(data_range=1.0).to(device)
 
 num_images = 10
